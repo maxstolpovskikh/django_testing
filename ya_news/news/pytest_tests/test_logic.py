@@ -1,75 +1,73 @@
 from http import HTTPStatus
+from random import choice
 
 import pytest
-
-from news.forms import BAD_WORDS
+from news.forms import BAD_WORDS, WARNING
 from news.models import Comment
+from pytest_django.asserts import assertFormError
 
 
-@pytest.mark.django_db
+TEXT_COMMENT = 'Comment text...'
+NEW_COMMENT_TEXT = 'New comment text...'
+
+
 def test_anonymous_user_cant_create_comment(client, detail_url):
-    client.post(detail_url, data={'text': 'Текст комментария'})
-    assert Comment.objects.count() == 0
+    comments_count = Comment.objects.count()
+    client.post(detail_url, data={'text': TEXT_COMMENT})
+    assert Comment.objects.count() == comments_count
 
 
-@pytest.mark.django_db
-def test_user_can_create_comment(client, author, detail_url, news):
-    client.force_login(author)
-    response = client.post(detail_url, data={'text': 'Текст комментария'})
+def test_user_can_create_comment(admin_user, admin_client, detail_url, news):
+    Comment.objects.all().delete()
+    response = admin_client.post(detail_url, data={'text': TEXT_COMMENT})
+    comment = Comment.objects.get()
     assert response.status_code == HTTPStatus.FOUND
     assert response.url == f'{detail_url}#comments'
-    assert Comment.objects.count() == 1
-    comment = Comment.objects.get()
-    assert comment.text == 'Текст комментария'
+    assert comment.text == TEXT_COMMENT
     assert comment.news == news
-    assert comment.author == author
+    assert comment.author == admin_user
 
 
-@pytest.mark.django_db
-def test_user_cant_use_bad_words(client, author, detail_url):
-    client.force_login(author)
-    bad_words_data = {'text': f'Какой-то текст, {BAD_WORDS[0]}, еще текст'}
-    client.post(detail_url, data=bad_words_data)
-    assert Comment.objects.count() == 0
+def test_user_cant_use_bad_words(admin_client, detail_url):
+    comments_count = Comment.objects.count()
+    bad_words_data = {'text': f'Текст, {choice(BAD_WORDS)}, еще текст'}
+    response = admin_client.post(detail_url, data=bad_words_data)
+    assert Comment.objects.count() == comments_count
+    assertFormError(response, 'form', 'text', WARNING)
 
 
-@pytest.mark.django_db
 @pytest.mark.parametrize('user_fixture, expected_status, should_delete', [
-    ('author', HTTPStatus.FOUND, True),
-    ('reader', HTTPStatus.NOT_FOUND, False),
+    ('author_client', HTTPStatus.FOUND, True),
+    ('reader_client', HTTPStatus.NOT_FOUND, False),
 ])
 def test_comment_deletion(
-    client, comment, delete_url, url_to_comments,
-    user_fixture, expected_status, should_delete, request
+    delete_url, url_to_comments, user_fixture,
+    expected_status, should_delete, request
 ):
     user = request.getfixturevalue(user_fixture)
-    client.force_login(user)
-    response = client.delete(delete_url)
+    response = user.delete(delete_url)
     assert response.status_code == expected_status
+    assert Comment.objects.count() != should_delete
     if should_delete:
         assert response.url == url_to_comments
-        assert Comment.objects.count() == 0
-    else:
-        assert Comment.objects.count() == 1
 
 
-@pytest.mark.django_db
 @pytest.mark.parametrize('user_fixture, expected_status, should_edit', [
-    ('author', HTTPStatus.FOUND, True),
-    ('reader', HTTPStatus.NOT_FOUND, False),
+    ('author_client', HTTPStatus.FOUND, True),
+    ('reader_client', HTTPStatus.NOT_FOUND, False),
 ])
 def test_comment_editing(
-    client, comment, edit_url, url_to_comments,
+    comment, edit_url, url_to_comments,
     user_fixture, expected_status, should_edit, request
 ):
     user = request.getfixturevalue(user_fixture)
-    client.force_login(user)
-    new_text = 'Обновлённый комментарий'
-    response = client.post(edit_url, data={'text': new_text})
+    response = user.post(edit_url, data={'text': NEW_COMMENT_TEXT})
+    touch_comment = Comment.objects.get(pk=comment.pk)
     assert response.status_code == expected_status
-    comment.refresh_from_db()
+    assert touch_comment.author == comment.author
+    assert touch_comment.news == comment.news
     if should_edit:
         assert response.url == url_to_comments
-        assert comment.text == new_text
+        assert touch_comment.text == NEW_COMMENT_TEXT
     else:
-        assert comment.text == 'Текст комментария'
+        assert touch_comment.text == TEXT_COMMENT
