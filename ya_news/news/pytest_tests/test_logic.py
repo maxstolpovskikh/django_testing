@@ -2,13 +2,11 @@ from http import HTTPStatus
 from random import choice
 
 import pytest
-from news.forms import BAD_WORDS, WARNING
-from news.models import Comment
 from pytest_django.asserts import assertFormError
 
-
-TEXT_COMMENT = 'Comment text...'
-NEW_COMMENT_TEXT = 'New comment text...'
+from news.forms import BAD_WORDS, WARNING
+from news.models import Comment
+from .conftest import TEXT_COMMENT, NEW_COMMENT_TEXT
 
 
 def test_anonymous_user_cant_create_comment(client, detail_url):
@@ -37,8 +35,8 @@ def test_user_cant_use_bad_words(admin_client, detail_url):
 
 
 @pytest.mark.parametrize('user_fixture, expected_status, should_delete', [
-    ('author_client', HTTPStatus.FOUND, True),
-    ('reader_client', HTTPStatus.NOT_FOUND, False),
+    ('author_client', HTTPStatus.FOUND, False),
+    ('reader_client', HTTPStatus.NOT_FOUND, True),
 ])
 def test_comment_deletion(
     delete_url, url_to_comments, user_fixture,
@@ -47,8 +45,8 @@ def test_comment_deletion(
     user = request.getfixturevalue(user_fixture)
     response = user.delete(delete_url)
     assert response.status_code == expected_status
-    assert Comment.objects.count() != should_delete
-    if should_delete:
+    assert Comment.objects.count() == should_delete
+    if not should_delete:
         assert response.url == url_to_comments
 
 

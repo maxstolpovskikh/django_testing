@@ -6,12 +6,23 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
+
 from news.models import Comment, News
 
 User = get_user_model()
 
 
 TEXT_COMMENT = 'Comment text...'
+NEW_COMMENT_TEXT = 'New comment text...'
+
+'''
+в пол шестого утра не догадался добавить __init__.py
+в папку pytest_tests
+без этого импорт не резолвился при запуске
+bash run_tests.sh,
+при этом pytest нормально запускался
+думаю логично разместить константы вместе с фикстурами
+'''
 
 
 @pytest.fixture(autouse=True)

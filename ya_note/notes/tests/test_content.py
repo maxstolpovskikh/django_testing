@@ -1,6 +1,5 @@
 from notes.forms import NoteForm
-
-from .test_logic import TestNote
+from .test_lib import TestNote
 
 
 class TestNotesContent(TestNote):
@@ -18,9 +17,8 @@ class TestNotesContent(TestNote):
         )
 
     def test_form_presence_on_pages(self):
-        self.client.force_login(self.author)
         for url in [self.ADD_URL, self.EDIT_URL]:
             with self.subTest(url=url):
-                response = self.client.get(url)
+                response = self.author_client.get(url)
                 self.assertIn('form', response.context)
                 self.assertIsInstance(response.context['form'], NoteForm)

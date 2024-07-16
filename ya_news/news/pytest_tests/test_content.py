@@ -10,8 +10,8 @@ def test_news_count(client, home_url, news_list):
 
 
 def test_news_order(client, home_url, news_list):
-    news_list_objects = client.get(home_url).context['object_list']
-    all_dates = [news.date for news in news_list_objects]
+    news_objects = client.get(home_url).context['object_list']
+    all_dates = [news.date for news in news_objects]
     sorted_dates = sorted(all_dates, reverse=True)
     assert all_dates == sorted_dates
 
@@ -25,17 +25,15 @@ def test_comments_order(client, detail_url, comments):
     assert all_timestamps == sorted_timestamps
 
 
-@pytest.mark.parametrize('is_authenticated, expected_form', [
-    (False, False),
-    (True, True),
+@pytest.mark.parametrize('user_fixture, expected_form', [
+    ('author_client', True),
+    ('client', False)
 ])
 def test_comment_form_presence(
-    admin_client, client, detail_url, is_authenticated, expected_form
+    detail_url, user_fixture, expected_form, request
 ):
-    if is_authenticated:
-        response = admin_client.get(detail_url)
-    else:
-        response = client.get(detail_url)
+    user = request.getfixturevalue(user_fixture)
+    response = user.get(detail_url)
     assert ('form' in response.context) == expected_form
     if expected_form:
         assert isinstance(response.context['form'], CommentForm)
